@@ -100,6 +100,26 @@ function getJsonValueAtPosition(json: any, content: string, lineNumber: number):
     }
 }
 
+/**
+ * 格式化 JSON 值为字符串
+ * @param value - 要格式化的值
+ * @returns 格式化后的字符串
+ */
+function formatJsonValue(value: any): string {
+    // 字符串：直接返回字符串内容，不添加引号
+    if (typeof value === 'string') {
+        return value;
+    }
+    
+    // 对象或数组：使用 JSON.stringify 格式化
+    if (typeof value === 'object' && value !== null) {
+        return JSON.stringify(value, null, 2);
+    }
+    
+    // 其他基本类型（数字、布尔值、null）：直接转换为字符串
+    return String(value);
+}
+
 
 // 自定义右键菜单
 const lists = [
@@ -222,7 +242,8 @@ const menuDefinition = (): {
                     const value = getJsonValueAtPosition(json, content, position.lineNumber);
                     
                     if (value !== undefined) {
-                        navigator.clipboard.writeText(JSON.stringify(value, null, 2));
+                        const formattedValue = formatJsonValue(value);
+                        navigator.clipboard.writeText(formattedValue);
                         Message.success($t('json_copy_value_success'));
                     } else {
                         Message.info($t('json_copy_value_not_found'));
