@@ -14,6 +14,7 @@
                     :placeholder="`Json ${$t('main_ui_input')}`"
                     lang="json"
                     :height="`${height}px`"
+                    enable-copy-json-value
                 />
                 <SerializeOutput
                     v-if="action.current.expand_type === 'to'"

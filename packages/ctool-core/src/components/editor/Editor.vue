@@ -76,6 +76,10 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    enableCopyJsonValue: {
+        type: Boolean,
+        default: false,
+    },
 });
 
 const storeTheme = useTheme();
@@ -146,6 +150,11 @@ const create = async (element: HTMLElement) => {
         
         // 行信息展示
         lineInfo(editor).status(props.lineInfo);
+        
+        // 启用复制键值功能
+        if (props.enableCopyJsonValue) {
+            contextMenu.toggle("ctool_copy_json_value", true);
+        }
         
         contextMenu.setHandle("ctool_line_wrapping", (_ed, _id, result) => (lineWrapping.value = result));
         contextMenu.setHandle("ctool_line_number", (_ed, _id, result) => (lineNumbers.value = result));

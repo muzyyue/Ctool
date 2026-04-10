@@ -30,3 +30,9 @@ _temp
 todo_list.md
 
 .vercel
+
+*.txt
+nginx.conf
+history.md
+
+.trae/

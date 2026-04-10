@@ -20,4 +20,8 @@
     "json_path": "JSONPath",
     "jmes_path": "JMESPath",
     "line_info": "长度",
+    "copy_value": "复制键值",
+    "copy_value_success": "键值已复制到剪贴板",
+    "copy_value_not_found": "未找到对应的键值",
+    "copy_value_error": "复制键值失败，请确保 JSON 格式正确",
 }

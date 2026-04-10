@@ -20,4 +20,8 @@
     "json_path": "JSONPath",
     "jmes_path": "JMESPath",
     "line_info": "Length",
+    "copy_value": "Copy Value",
+    "copy_value_success": "Value copied to clipboard",
+    "copy_value_not_found": "Value not found",
+    "copy_value_error": "Failed to copy value, please ensure JSON format is correct",
 }
