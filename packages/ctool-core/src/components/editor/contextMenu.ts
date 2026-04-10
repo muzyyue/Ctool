@@ -3,6 +3,29 @@ import formatter from "@/tools/code/formatter";
 import Message from "@/helper/message";
 
 /**
+ * 检测 JSON 内容的缩进大小
+ * @param content - JSON 字符串内容
+ * @returns 每级缩进的空格数
+ */
+function detectIndentSize(content: string): number {
+    const lines = content.split('\n');
+    const indents: number[] = [];
+    
+    for (const line of lines) {
+        const indent = line.search(/\S/);
+        if (indent > 0) {
+            indents.push(indent);
+        }
+    }
+    
+    if (indents.length === 0) return 2;
+    
+    // 找出最小的缩进作为基础单位
+    const minIndent = Math.min(...indents);
+    return minIndent > 0 ? minIndent : 2;
+}
+
+/**
  * 根据光标位置获取 JSON 中对应的键值
  * @param json - 解析后的 JSON 对象
  * @param content - JSON 字符串内容
@@ -13,6 +36,9 @@ function getJsonValueAtPosition(json: any, content: string, lineNumber: number):
     const lines = content.split('\n');
     if (lineNumber < 1 || lineNumber > lines.length) return undefined;
     
+    // 检测缩进大小
+    const indentSize = detectIndentSize(content);
+    
     // 构建路径栈，记录每一行的键和层级关系
     const pathStack: Array<{key: string, depth: number}> = [];
     let currentDepth = 0;
@@ -22,15 +48,18 @@ function getJsonValueAtPosition(json: any, content: string, lineNumber: number):
         const line = lines[i];
         const trimmedLine = line.trim();
         
+        // 跳过空行
+        if (trimmedLine === '') continue;
+        
         // 计算当前行的缩进深度
         const indent = line.search(/\S/);
-        const depth = Math.floor(indent / 2); // 假设每级缩进2个空格
+        const depth = Math.floor(indent / indentSize);
         
         // 如果遇到 } 或 ]，减少深度
         if (trimmedLine.startsWith('}') || trimmedLine.startsWith(']')) {
             currentDepth = depth;
-            // 移除栈中深度大于等于当前深度的元素
-            while (pathStack.length > 0 && pathStack[pathStack.length - 1].depth >= currentDepth) {
+            // 移除栈中深度大于当前深度的元素
+            while (pathStack.length > 0 && pathStack[pathStack.length - 1].depth > currentDepth) {
                 pathStack.pop();
             }
             continue;
