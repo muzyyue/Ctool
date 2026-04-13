@@ -26,73 +26,166 @@ function detectIndentSize(content: string): number {
 }
 
 /**
+ * 路径栈项接口
+ * @property key - 键名或数组索引
+ * @property depth - 缩进深度
+ */
+interface PathItem {
+    key: string;
+    depth: number;
+}
+
+/**
+ * 容器信息接口，用于跟踪当前所在的对象或数组
+ * @property type - 容器类型：object 或 array
+ * @property depth - 容器开始位置的深度
+ * @property arrayIndex - 如果是数组，记录当前元素的索引
+ */
+interface ContainerInfo {
+    type: 'object' | 'array';
+    depth: number;
+    arrayIndex: number;
+}
+
+/**
  * 根据光标位置获取 JSON 中对应的键值
+ * 支持复杂嵌套结构，包括数组内嵌套对象
  * @param json - 解析后的 JSON 对象
  * @param content - JSON 字符串内容
- * @param lineNumber - 光标所在行号
+ * @param lineNumber - 光标所在行号（从 1 开始）
  * @returns 键对应的值，如果未找到则返回 undefined
  */
 function getJsonValueAtPosition(json: any, content: string, lineNumber: number): any | undefined {
     const lines = content.split('\n');
     if (lineNumber < 1 || lineNumber > lines.length) return undefined;
-    
+
     // 检测缩进大小
     const indentSize = detectIndentSize(content);
-    
-    // 构建路径栈，记录每一行的键和层级关系
-    const pathStack: Array<{key: string, depth: number}> = [];
-    let currentDepth = 0;
-    
+
+    // 路径栈，记录从根到当前位置的完整路径
+    const pathStack: PathItem[] = [];
+
+    // 容器栈，跟踪当前嵌套的容器类型和深度
+    const containerStack: ContainerInfo[] = [];
+
+    // 记录每个容器开始时路径栈的大小，用于回退
+    const containerPathSizeStack: number[] = [];
+
     // 分析到当前行为止的所有行，构建路径
     for (let i = 0; i < lineNumber; i++) {
         const line = lines[i];
         const trimmedLine = line.trim();
-        
+
         // 跳过空行
         if (trimmedLine === '') continue;
-        
+
         // 计算当前行的缩进深度
         const indent = line.search(/\S/);
-        const depth = Math.floor(indent / indentSize);
-        
-        // 如果遇到 } 或 ]，减少深度
+        const depth = indent >= 0 ? Math.floor(indent / indentSize) : 0;
+
+        // 处理容器结束标记 } 或 ]
         if (trimmedLine.startsWith('}') || trimmedLine.startsWith(']')) {
-            currentDepth = depth;
-            // 移除栈中深度大于当前深度的元素
-            while (pathStack.length > 0 && pathStack[pathStack.length - 1].depth > currentDepth) {
-                pathStack.pop();
+            // 从容器栈中弹出当前容器
+            if (containerStack.length > 0) {
+                containerStack.pop();
+                // 回退路径栈到该容器开始前的大小
+                const previousPathSize = containerPathSizeStack.pop();
+                if (previousPathSize !== undefined) {
+                    pathStack.length = previousPathSize;
+                }
             }
             continue;
         }
-        
-        // 查找键名
+
+        // 处理容器开始标记 { 或 [
+        if (trimmedLine === '{' || trimmedLine === '[') {
+            const parentContainer = containerStack[containerStack.length - 1];
+
+            // 如果父容器是数组，检查是否为新的数组元素
+            if (parentContainer && parentContainer.type === 'array') {
+                // 判断是否为数组的新元素
+                // 新元素的特征：
+                // 1. 是对象 {（不是数组 [）
+                // 2. 深度比数组容器深（或相等，取决于格式化）
+                if (trimmedLine === '{') {
+                    // 递增数组索引
+                    parentContainer.arrayIndex++;
+                    
+                    // 如果这不是第一个元素（索引 > 0），或者之前没有添加过索引
+                    // 则将数组索引添加到路径栈
+                    if (parentContainer.arrayIndex > 0) {
+                        // 移除之前的旧索引（如果存在）
+                        const lastPathItem = pathStack[pathStack.length - 1];
+                        if (lastPathItem && !isNaN(parseInt(lastPathItem.key)) && 
+                            lastPathItem.depth === parentContainer.depth) {
+                            pathStack.pop();
+                        }
+                        
+                        // 添加新索引
+                        pathStack.push({
+                            key: parentContainer.arrayIndex.toString(),
+                            depth: parentContainer.depth
+                        });
+                    } else if (parentContainer.arrayIndex === 0) {
+                        // 第一个元素，添加索引 0
+                        pathStack.push({
+                            key: '0',
+                            depth: parentContainer.depth
+                        });
+                    }
+                }
+            }
+
+            // 记录当前路径栈大小，以便后续回退
+            containerPathSizeStack.push(pathStack.length);
+
+            // 将当前容器压入容器栈
+            containerStack.push({
+                type: trimmedLine === '{' ? 'object' : 'array',
+                depth,
+                arrayIndex: -1  // 初始化为 -1，首次使用时会递增到 0
+            });
+            continue;
+        }
+
+        // 处理键值对 "key": value
         const keyMatch = trimmedLine.match(/^"([^"]+)"\s*:/);
         if (keyMatch) {
             const key = keyMatch[1];
-            
-            // 移除栈中深度大于等于当前深度的元素
-            while (pathStack.length > 0 && pathStack[pathStack.length - 1].depth >= depth) {
-                pathStack.pop();
+            const currentContainer = containerStack[containerStack.length - 1];
+
+            // 只有在对象容器内才将键名添加到路径栈
+            if (currentContainer && currentContainer.type === 'object') {
+                // 清理路径栈中深度大于等于当前深度的项（移除同级或更深层的旧键）
+                while (pathStack.length > 0 && pathStack[pathStack.length - 1].depth >= depth) {
+                    pathStack.pop();
+                }
+
+                // 添加键名到路径栈
+                pathStack.push({ key, depth });
             }
             
-            // 添加当前键到栈中
-            pathStack.push({key, depth});
-            currentDepth = depth;
-        }
-        
-        // 处理数组索引
-        const arrayItemMatch = trimmedLine.match(/^(\d+):/);
-        if (arrayItemMatch) {
-            const index = parseInt(arrayItemMatch[1]);
-            while (pathStack.length > 0 && pathStack[pathStack.length - 1].depth >= depth) {
-                pathStack.pop();
+            // 检查值部分是否直接跟随容器开始标记
+            // 例如: "data": [  或  "item": {
+            const afterColon = trimmedLine.substring(keyMatch[0].length).trim();
+            if (afterColon === '[' || afterColon === '{') {
+                // 这是一个内联的容器开始标记，需要立即处理
+                const containerType = afterColon === '[' ? 'array' : 'object';
+                
+                // 记录当前路径栈大小
+                containerPathSizeStack.push(pathStack.length);
+                
+                // 压入新容器
+                containerStack.push({
+                    type: containerType,
+                    depth,
+                    arrayIndex: -1
+                });
             }
-            pathStack.push({key: index.toString(), depth});
-            currentDepth = depth;
         }
     }
-    
-    // 如果路径栈为空，尝试获取当前行的键
+
+    // 如果路径栈为空，尝试获取当前行的顶级键
     if (pathStack.length === 0) {
         const currentLine = lines[lineNumber - 1];
         const keyMatch = currentLine.match(/"([^"]+)"\s*:/);
@@ -101,21 +194,23 @@ function getJsonValueAtPosition(json: any, content: string, lineNumber: number):
         }
         return undefined;
     }
-    
+
     // 根据路径栈获取值
     try {
         let current = json;
         for (const item of pathStack) {
             if (current === null || current === undefined) return undefined;
-            
+
             if (Array.isArray(current)) {
+                // 处理数组索引
                 const index = parseInt(item.key);
                 if (isNaN(index) || index < 0 || index >= current.length) {
                     return undefined;
                 }
                 current = current[index];
             } else if (typeof current === 'object') {
-                if (!current.hasOwnProperty(item.key)) {
+                // 处理对象属性
+                if (!Object.prototype.hasOwnProperty.call(current, item.key)) {
                     return undefined;
                 }
                 current = current[item.key];
