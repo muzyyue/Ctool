@@ -24,4 +24,10 @@
     "copy_value_success": "键值已复制到剪贴板",
     "copy_value_not_found": "未找到对应的键值",
     "copy_value_error": "复制键值失败，请确保 JSON 格式正确",
+    "fold_all": "收起全部",
+    "fold_all_tip": "收起所有层级的JSON键值对",
+    "fold_data": "收起数据",
+    "fold_data_tip": "折叠所有对象和数组数据内容，保留属性名可见",
+    "unfold_all": "展开全部",
+    "unfold_all_tip": "展开所有层级的JSON键值对",
 }

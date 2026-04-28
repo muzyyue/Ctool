@@ -24,4 +24,10 @@
     "copy_value_success": "Value copied to clipboard",
     "copy_value_not_found": "Value not found",
     "copy_value_error": "Failed to copy value, please ensure JSON format is correct",
+    "fold_all": "Collapse All",
+    "fold_all_tip": "Collapse all JSON key-value pairs at all levels",
+    "fold_data": "Fold Data",
+    "fold_data_tip": "Fold all object and array data content, keep property names visible",
+    "unfold_all": "Expand All",
+    "unfold_all_tip": "Expand all JSON key-value pairs at all levels",
 }

@@ -9,6 +9,7 @@
                     v-model="action.current.option.from"
                 />
                 <Editor
+                    ref="editorRef"
                     v-model="action.current.input"
                     :line-info="action.current.option.info.line"
                     :placeholder="`Json ${$t('main_ui_input')}`"
@@ -60,6 +61,8 @@
             >
                 <Align>
                     <Button @click="general.beautify()">{{ $t(`json_format`) }}</Button>
+                    <Button @click="foldAll">{{ $t(`json_fold_data`) }}</Button>
+                    <Button @click="unfoldAll">{{ $t(`json_unfold_all`) }}</Button>
                     <Select
                         :model-value="action.current.option.tab"
                         @change="value => general.tabs(value)"
@@ -152,7 +155,7 @@
 </template>
 
 <script lang="ts" setup>
-import { StyleValue, watch } from "vue";
+import { StyleValue, watch, ref } from "vue";
 import Json from "@/helper/json";
 import { useAction, initialize } from "@/store/action";
 import { tabOptions, actionType, TabsType, pathLists } from "./define";
@@ -168,6 +171,7 @@ import { jsonrepair } from "jsonrepair";
 import { ComponentSizeType } from "@/types";
 import ToObject from "./toObject/ToObject.vue";
 import { languages as toObjectLangLists, getOption as getToObjectOption } from "./toObject";
+import Editor from "@/components/editor/Editor.vue";
 
 const action = useAction(
     await initialize<actionType>(
@@ -201,6 +205,110 @@ const action = useAction(
 let toObjectOpen = $ref(false);
 
 const size: ComponentSizeType = "default";
+
+/**
+ * 编辑器组件引用
+ * 用于获取Monaco Editor实例执行折叠/展开操作
+ */
+const editorRef = ref<InstanceType<typeof Editor> | null>(null);
+
+/**
+ * 一键收起数据（智能模式）
+ * 折叠所有对象和数组的数据内容，但保留属性名可见
+ * 效果：完整展示JSON层级架构，所有复合类型值处于折叠状态
+ */
+const foldAll = () => {
+    const editor = editorRef.value?.getEditor();
+
+    // 防御性编程：编辑器未初始化时直接返回
+    if (!editor) {
+        return;
+    }
+
+    // 保存当前滚动位置
+    const scrollTop = editor.getScrollTop();
+    const scrollLeft = editor.getScrollLeft();
+
+    try {
+        // 步骤1: 完全折叠所有内容（使用Monaco原生foldAll）
+        const foldAction = editor.getAction('editor.foldAll');
+        if (foldAction) {
+            foldAction.run();
+        }
+
+        // 步骤2: 展开顶层（第1行），显示一级属性列表
+        // 将光标移到第1行并执行unfold操作
+        editor.setPosition({ lineNumber: 1, column: 1 });
+        const unfoldAction = editor.getAction('editor.unfold');
+        if (unfoldAction) {
+            unfoldAction.run();
+        }
+
+        // 步骤3: 恢复滚动位置
+        restoreScrollPosition(editor, scrollTop, scrollLeft);
+
+        console.log('[FoldData] 收起数据操作完成');
+    } catch (error) {
+        console.error('Fold data operation failed:', error);
+    }
+};
+
+/**
+ * 恢复编辑器滚动位置
+ * 使用requestAnimationFrame确保在动画完成后恢复
+ * @param editor - Monaco编辑器实例（IStandaloneCodeEditor）
+ * @param scrollTop - 垂直滚动位置
+ * @param scrollLeft - 水平滚动位置
+ */
+const restoreScrollPosition = (
+    editor: {
+        setScrollPosition: (position: { scrollTop: number; scrollLeft: number }) => void;
+    },
+    scrollTop: number,
+    scrollLeft: number,
+) => {
+    requestAnimationFrame(() => {
+        editor.setScrollPosition({
+            scrollLeft,
+            scrollTop,
+        });
+    });
+};
+
+/**
+ * 一键展开所有键值对
+ * 展开所有层级的JSON内容完全显示，保持当前视图位置
+ */
+const unfoldAll = () => {
+    const editor = editorRef.value?.getEditor();
+
+    // 防御性编程：编辑器未初始化时直接返回
+    if (!editor) {
+        return;
+    }
+
+    // 保存当前滚动位置
+    const scrollTop = editor.getScrollTop();
+    const scrollLeft = editor.getScrollLeft();
+
+    try {
+        // 调用Monaco原生API执行展开操作
+        const unfoldAction = editor.getAction('editor.unfoldAll');
+        if (unfoldAction) {
+            unfoldAction.run();
+        }
+
+        // 使用requestAnimationFrame确保在展开动画完成后恢复滚动位置
+        requestAnimationFrame(() => {
+            editor.setScrollPosition({
+                scrollLeft,
+                scrollTop,
+            });
+        });
+    } catch (error) {
+        console.error('Unfold all operation failed:', error);
+    }
+};
 
 // 布局
 const layoutStyle = $computed(() => {

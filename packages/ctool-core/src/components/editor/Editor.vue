@@ -216,6 +216,17 @@ watch(
     },
     () => updateEditorConfig(),
 );
+
+/**
+ * 暴露编辑器实例获取方法供父组件调用
+ */
+defineExpose({
+    /**
+     * 获取Monaco编辑器实例
+     * @returns IStandaloneCodeEditor实例或null
+     */
+    getEditor: (): monacoEditor.editor.IStandaloneCodeEditor | null => editorView.value,
+});
 </script>
 <style>
 .ctool-code-editor {
